@@ -53,8 +53,8 @@
   }
   
   Fileinput.prototype.listen = function() {
-    // this.$input.on('change.bs.fileinput', $.proxy(this.change, this))
-    // $(this.$input[0].form).on('reset.bs.fileinput', $.proxy(this.reset, this))
+    this.$input.on('change.bs.fileinput', $.proxy(this.change, this))
+    $(this.$input[0].form).on('reset.bs.fileinput', $.proxy(this.reset, this))
     
     this.$element.find('[data-trigger="fileinput"]').on('click.bs.fileinput', $.proxy(this.trigger, this))
     this.$element.find('[data-dismiss="fileinput"]').on('click.bs.fileinput', $.proxy(this.clear, this))
