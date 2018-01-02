@@ -296,7 +296,7 @@ header {
     background-size: cover;*/
     /*min-height: 730px;*/
 	position:relative;
-	margin-bottom: 8.5em;
+	margin-bottom: auto;
 }
 .navbar-default .navbar-nav > .open > a, .navbar-default .navbar-nav > .open > a:hover, .navbar-default .navbar-nav > .open > a:focus {
     color: #fff;
@@ -2799,7 +2799,7 @@ h2.typoh2{
 	}
 	.banner {
 		min-height: 565px;
-		margin-bottom: 7.5em;
+		margin-bottom: auto;
 	}
 	.banner-text {
 		padding: 2.5em 0 0 0;
@@ -3087,7 +3087,7 @@ h2.typoh2{
 	}
 	.banner {
 		min-height: 470px;
-		margin-bottom: 6em;
+		margin-bottom: auto;
 	}
 	.search_box:checked~.search_form {
 		width: 415px;
@@ -3419,7 +3419,7 @@ h2.typoh2{
 	}
 	.banner {
 		min-height: 435px;
-		margin-bottom: 5.5em;
+		margin-bottom: auto;
 	}
 	.numscroller {
 		font-size: 1.5em;
@@ -3533,7 +3533,7 @@ h2.typoh2{
 		margin-bottom: 0.9em;
 	}
 	.banner {
-		margin-bottom: 8.5em;
+		margin-bottom: auto;
 	}
 	.agitsworkw3ls-grid h3 {
 		font-size: 1.3em!important;
@@ -3620,7 +3620,7 @@ h2.typoh2{
 		bottom: -4.3em;
 	}
 	.banner {
-		margin-bottom: 6.7em;
+		margin-bottom: auto;
 	}
 }
 @media(max-width:736px){
@@ -4010,7 +4010,7 @@ h2.typoh2{
 		bottom: -2.3em;
 	}
 	.banner {
-		margin-bottom: 5em;
+		margin-bottom: auto;
 	}
 	.ab-w3-agile-img {
 		min-height: 223px;

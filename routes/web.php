@@ -45,5 +45,7 @@ Route::get('/create/content', 'PageTitleController@view');
 Route::post('page/content/save/{page_id}', 'PageTitleController@saved');
 
 Route::get('/gallery/new/profile', 'StudentProfileController@index');
-Route::post('/save/image', 'StudentProfileController@upload');
-Route::post('/save/student', 'StudentProfileController@save');
+Route::post('/save/student', 'StudentProfileController@store');
+Route::get('/gallery/students', 'StudentProfileController@get_students');
+Route::delete('student/{id}', 'StudentProfileController@delete');
+Route::patch('student/{id}', 'StudentProfileController@update');

@@ -4,9 +4,6 @@ namespace App\Http\Controllers;
 
 use App\StudentProfile;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-// import the Intervention Image Manager Class
-// use Intervention\Image\ImageManager;
 
 class StudentProfileController extends Controller
 {
@@ -14,46 +11,46 @@ class StudentProfileController extends Controller
     	return view('profile.profile');
     }
 
-    public function upload(Request $request){
 
+    public function store(Request $request){
         $this->validate($request, [
-            'file' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'fullname' => 'required|min:5',
+            'email' => 'required|email|min:7|unique:student_profiles',
+            'note' => 'min:15|string|nullable',
+            'facebook_id' => 'min:4|unique:student_profiles|nullable',
+            'twitter_id' => 'min:4|string|unique:student_profiles|nullable',
+            'linkedin_id' => 'min:4|string|unique:student_profiles|nullable',
+            'image' => 'required|string'
         ]);
 
-        $image = $request->file('file');
-        $filename = md5($image->getClientOriginalName() . time()) . "." . $image->getClientOriginalExtension();
-        $path = public_path('/uploads/students_image/' . $filename);
-
-        Image::make($image->getRealPath())->resize(200, 200)->save($path);
-        //$path = $request->file('file')->store('uploads/students_image');
-
-        return response()->json(['url' => $path]);
+        $return = new StudentProfile($request->all());
+        if($return->save()) return response()->json(['title' => 'Student Registered!', 'text' => 'Student Profile Now Available', 'status' => 'success']);
+        else return response()->json(['title' => 'Registration Failed!', 'text'=>'Failed to Register Student Due To Bad Data Provided! Please Try Again Later.', 'status' => 'error']);
     }
 
-    public function save(Request $request){
+    public function update(Request $request, StudentProfile $id){
+
         $this->validate($request, [
             'fullname' => 'required|min:5',
             'email' => 'required|email|min:7',
-            'bio' => 'min:15',
-            'facebook_id' => 'required|min:4|unique:student_profiles',
-            'twitter_id' => 'min:4|string|unique:student_profiles',
-            'linkedin_id' => 'min:4|string|unique:student_profiles',
-            'file' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:1024'
+            'facebook_id' => 'min:4|string|nullable',
+            'twitter_id' => 'min:4|string|nullable',
+            'linkedin_id' => 'min:4|string|nullable',
         ]);
 
-        if($request->hasFile('file')) $path = $request->file('file')->store('uploads/students_image');
+        $id->update(request()->all());
+        return response()->json(['title' => 'Profile Update Success!', 'text' => 'Student Profile Updated Successfully', 'status' => 'success']);
 
-        $return = new StudentProfile([
-            'fullname' => $request->input('fullname'),
-            'email' => $request->input('email'),
-            'note' => $request->input('bio'),
-            'facebook_id' => $request->input('facebook_id'),
-            'twitter_id' => $request->input('twitter_id'),
-            'linkedin_id' => $request->input('linkedin_id'),
-            'image' => Storage::url($path)
-        ]);
-        
-        if($return->save()) return response()->json(['title' => 'Student Registered!', 'text' => 'Student Profile Now Available', 'status' => 'success']);
-        else return response()->json(['title' => 'Registration Failed!', 'text'=>'Failed to Register Student Due To Bad Data Provided! Please Try Again Later.', 'status' => 'error']);
+    }
+
+    public function get_students()
+    {
+        return view('profile.edit_profile')->with('students', StudentProfile::all());
+    }
+
+    public function delete(StudentProfile $id)
+    {
+        $id->delete();
+        return back();
     }
 }

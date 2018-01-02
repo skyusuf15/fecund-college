@@ -60,7 +60,7 @@
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 8);
+/******/ 	return __webpack_require__(__webpack_require__.s = 37);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -70,8 +70,8 @@
 "use strict";
 
 
-var bind = __webpack_require__(3);
-var isBuffer = __webpack_require__(17);
+var bind = __webpack_require__(2);
+var isBuffer = __webpack_require__(15);
 
 /*global toString:true*/
 
@@ -381,7 +381,7 @@ module.exports = {
 /* WEBPACK VAR INJECTION */(function(process) {
 
 var utils = __webpack_require__(0);
-var normalizeHeaderName = __webpack_require__(20);
+var normalizeHeaderName = __webpack_require__(18);
 
 var DEFAULT_CONTENT_TYPE = {
   'Content-Type': 'application/x-www-form-urlencoded'
@@ -397,10 +397,10 @@ function getDefaultAdapter() {
   var adapter;
   if (typeof XMLHttpRequest !== 'undefined') {
     // For browsers use XHR adapter
-    adapter = __webpack_require__(4);
+    adapter = __webpack_require__(3);
   } else if (typeof process !== 'undefined') {
     // For node use HTTP adapter
-    adapter = __webpack_require__(4);
+    adapter = __webpack_require__(3);
   }
   return adapter;
 }
@@ -471,10 +471,278 @@ utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
 
 module.exports = defaults;
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(19)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(17)))
 
 /***/ }),
 /* 2 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+module.exports = function bind(fn, thisArg) {
+  return function wrap() {
+    var args = new Array(arguments.length);
+    for (var i = 0; i < args.length; i++) {
+      args[i] = arguments[i];
+    }
+    return fn.apply(thisArg, args);
+  };
+};
+
+
+/***/ }),
+/* 3 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var utils = __webpack_require__(0);
+var settle = __webpack_require__(19);
+var buildURL = __webpack_require__(21);
+var parseHeaders = __webpack_require__(22);
+var isURLSameOrigin = __webpack_require__(23);
+var createError = __webpack_require__(4);
+var btoa = (typeof window !== 'undefined' && window.btoa && window.btoa.bind(window)) || __webpack_require__(24);
+
+module.exports = function xhrAdapter(config) {
+  return new Promise(function dispatchXhrRequest(resolve, reject) {
+    var requestData = config.data;
+    var requestHeaders = config.headers;
+
+    if (utils.isFormData(requestData)) {
+      delete requestHeaders['Content-Type']; // Let the browser set it
+    }
+
+    var request = new XMLHttpRequest();
+    var loadEvent = 'onreadystatechange';
+    var xDomain = false;
+
+    // For IE 8/9 CORS support
+    // Only supports POST and GET calls and doesn't returns the response headers.
+    // DON'T do this for testing b/c XMLHttpRequest is mocked, not XDomainRequest.
+    if ("development" !== 'test' &&
+        typeof window !== 'undefined' &&
+        window.XDomainRequest && !('withCredentials' in request) &&
+        !isURLSameOrigin(config.url)) {
+      request = new window.XDomainRequest();
+      loadEvent = 'onload';
+      xDomain = true;
+      request.onprogress = function handleProgress() {};
+      request.ontimeout = function handleTimeout() {};
+    }
+
+    // HTTP basic authentication
+    if (config.auth) {
+      var username = config.auth.username || '';
+      var password = config.auth.password || '';
+      requestHeaders.Authorization = 'Basic ' + btoa(username + ':' + password);
+    }
+
+    request.open(config.method.toUpperCase(), buildURL(config.url, config.params, config.paramsSerializer), true);
+
+    // Set the request timeout in MS
+    request.timeout = config.timeout;
+
+    // Listen for ready state
+    request[loadEvent] = function handleLoad() {
+      if (!request || (request.readyState !== 4 && !xDomain)) {
+        return;
+      }
+
+      // The request errored out and we didn't get a response, this will be
+      // handled by onerror instead
+      // With one exception: request that using file: protocol, most browsers
+      // will return status as 0 even though it's a successful request
+      if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf('file:') === 0)) {
+        return;
+      }
+
+      // Prepare the response
+      var responseHeaders = 'getAllResponseHeaders' in request ? parseHeaders(request.getAllResponseHeaders()) : null;
+      var responseData = !config.responseType || config.responseType === 'text' ? request.responseText : request.response;
+      var response = {
+        data: responseData,
+        // IE sends 1223 instead of 204 (https://github.com/mzabriskie/axios/issues/201)
+        status: request.status === 1223 ? 204 : request.status,
+        statusText: request.status === 1223 ? 'No Content' : request.statusText,
+        headers: responseHeaders,
+        config: config,
+        request: request
+      };
+
+      settle(resolve, reject, response);
+
+      // Clean up request
+      request = null;
+    };
+
+    // Handle low level network errors
+    request.onerror = function handleError() {
+      // Real errors are hidden from us by the browser
+      // onerror should only fire if it's a network error
+      reject(createError('Network Error', config, null, request));
+
+      // Clean up request
+      request = null;
+    };
+
+    // Handle timeout
+    request.ontimeout = function handleTimeout() {
+      reject(createError('timeout of ' + config.timeout + 'ms exceeded', config, 'ECONNABORTED',
+        request));
+
+      // Clean up request
+      request = null;
+    };
+
+    // Add xsrf header
+    // This is only done if running in a standard browser environment.
+    // Specifically not if we're in a web worker, or react-native.
+    if (utils.isStandardBrowserEnv()) {
+      var cookies = __webpack_require__(25);
+
+      // Add xsrf header
+      var xsrfValue = (config.withCredentials || isURLSameOrigin(config.url)) && config.xsrfCookieName ?
+          cookies.read(config.xsrfCookieName) :
+          undefined;
+
+      if (xsrfValue) {
+        requestHeaders[config.xsrfHeaderName] = xsrfValue;
+      }
+    }
+
+    // Add headers to the request
+    if ('setRequestHeader' in request) {
+      utils.forEach(requestHeaders, function setRequestHeader(val, key) {
+        if (typeof requestData === 'undefined' && key.toLowerCase() === 'content-type') {
+          // Remove Content-Type if data is undefined
+          delete requestHeaders[key];
+        } else {
+          // Otherwise add header to the request
+          request.setRequestHeader(key, val);
+        }
+      });
+    }
+
+    // Add withCredentials to request if needed
+    if (config.withCredentials) {
+      request.withCredentials = true;
+    }
+
+    // Add responseType to request if needed
+    if (config.responseType) {
+      try {
+        request.responseType = config.responseType;
+      } catch (e) {
+        // Expected DOMException thrown by browsers not compatible XMLHttpRequest Level 2.
+        // But, this can be suppressed for 'json' type as it can be parsed by default 'transformResponse' function.
+        if (config.responseType !== 'json') {
+          throw e;
+        }
+      }
+    }
+
+    // Handle progress if needed
+    if (typeof config.onDownloadProgress === 'function') {
+      request.addEventListener('progress', config.onDownloadProgress);
+    }
+
+    // Not all browsers support upload events
+    if (typeof config.onUploadProgress === 'function' && request.upload) {
+      request.upload.addEventListener('progress', config.onUploadProgress);
+    }
+
+    if (config.cancelToken) {
+      // Handle cancellation
+      config.cancelToken.promise.then(function onCanceled(cancel) {
+        if (!request) {
+          return;
+        }
+
+        request.abort();
+        reject(cancel);
+        // Clean up request
+        request = null;
+      });
+    }
+
+    if (requestData === undefined) {
+      requestData = null;
+    }
+
+    // Send the request
+    request.send(requestData);
+  });
+};
+
+
+/***/ }),
+/* 4 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var enhanceError = __webpack_require__(20);
+
+/**
+ * Create an Error with the specified message, config, error code, request and response.
+ *
+ * @param {string} message The error message.
+ * @param {Object} config The config.
+ * @param {string} [code] The error code (for example, 'ECONNABORTED').
+ * @param {Object} [request] The request.
+ * @param {Object} [response] The response.
+ * @returns {Error} The created error.
+ */
+module.exports = function createError(message, config, code, request, response) {
+  var error = new Error(message);
+  return enhanceError(error, config, code, request, response);
+};
+
+
+/***/ }),
+/* 5 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+module.exports = function isCancel(value) {
+  return !!(value && value.__CANCEL__);
+};
+
+
+/***/ }),
+/* 6 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/**
+ * A `Cancel` is an object that is thrown when an operation is canceled.
+ *
+ * @class
+ * @param {string=} message The message.
+ */
+function Cancel(message) {
+  this.message = message;
+}
+
+Cancel.prototype.toString = function toString() {
+  return 'Cancel' + (this.message ? ': ' + this.message : '');
+};
+
+Cancel.prototype.__CANCEL__ = true;
+
+module.exports = Cancel;
+
+
+/***/ }),
+/* 7 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*!
@@ -10734,316 +11002,11 @@ return jQuery;
 
 
 /***/ }),
-/* 3 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-module.exports = function bind(fn, thisArg) {
-  return function wrap() {
-    var args = new Array(arguments.length);
-    for (var i = 0; i < args.length; i++) {
-      args[i] = arguments[i];
-    }
-    return fn.apply(thisArg, args);
-  };
-};
-
-
-/***/ }),
-/* 4 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-var utils = __webpack_require__(0);
-var settle = __webpack_require__(21);
-var buildURL = __webpack_require__(23);
-var parseHeaders = __webpack_require__(24);
-var isURLSameOrigin = __webpack_require__(25);
-var createError = __webpack_require__(5);
-var btoa = (typeof window !== 'undefined' && window.btoa && window.btoa.bind(window)) || __webpack_require__(26);
-
-module.exports = function xhrAdapter(config) {
-  return new Promise(function dispatchXhrRequest(resolve, reject) {
-    var requestData = config.data;
-    var requestHeaders = config.headers;
-
-    if (utils.isFormData(requestData)) {
-      delete requestHeaders['Content-Type']; // Let the browser set it
-    }
-
-    var request = new XMLHttpRequest();
-    var loadEvent = 'onreadystatechange';
-    var xDomain = false;
-
-    // For IE 8/9 CORS support
-    // Only supports POST and GET calls and doesn't returns the response headers.
-    // DON'T do this for testing b/c XMLHttpRequest is mocked, not XDomainRequest.
-    if ("development" !== 'test' &&
-        typeof window !== 'undefined' &&
-        window.XDomainRequest && !('withCredentials' in request) &&
-        !isURLSameOrigin(config.url)) {
-      request = new window.XDomainRequest();
-      loadEvent = 'onload';
-      xDomain = true;
-      request.onprogress = function handleProgress() {};
-      request.ontimeout = function handleTimeout() {};
-    }
-
-    // HTTP basic authentication
-    if (config.auth) {
-      var username = config.auth.username || '';
-      var password = config.auth.password || '';
-      requestHeaders.Authorization = 'Basic ' + btoa(username + ':' + password);
-    }
-
-    request.open(config.method.toUpperCase(), buildURL(config.url, config.params, config.paramsSerializer), true);
-
-    // Set the request timeout in MS
-    request.timeout = config.timeout;
-
-    // Listen for ready state
-    request[loadEvent] = function handleLoad() {
-      if (!request || (request.readyState !== 4 && !xDomain)) {
-        return;
-      }
-
-      // The request errored out and we didn't get a response, this will be
-      // handled by onerror instead
-      // With one exception: request that using file: protocol, most browsers
-      // will return status as 0 even though it's a successful request
-      if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf('file:') === 0)) {
-        return;
-      }
-
-      // Prepare the response
-      var responseHeaders = 'getAllResponseHeaders' in request ? parseHeaders(request.getAllResponseHeaders()) : null;
-      var responseData = !config.responseType || config.responseType === 'text' ? request.responseText : request.response;
-      var response = {
-        data: responseData,
-        // IE sends 1223 instead of 204 (https://github.com/mzabriskie/axios/issues/201)
-        status: request.status === 1223 ? 204 : request.status,
-        statusText: request.status === 1223 ? 'No Content' : request.statusText,
-        headers: responseHeaders,
-        config: config,
-        request: request
-      };
-
-      settle(resolve, reject, response);
-
-      // Clean up request
-      request = null;
-    };
-
-    // Handle low level network errors
-    request.onerror = function handleError() {
-      // Real errors are hidden from us by the browser
-      // onerror should only fire if it's a network error
-      reject(createError('Network Error', config, null, request));
-
-      // Clean up request
-      request = null;
-    };
-
-    // Handle timeout
-    request.ontimeout = function handleTimeout() {
-      reject(createError('timeout of ' + config.timeout + 'ms exceeded', config, 'ECONNABORTED',
-        request));
-
-      // Clean up request
-      request = null;
-    };
-
-    // Add xsrf header
-    // This is only done if running in a standard browser environment.
-    // Specifically not if we're in a web worker, or react-native.
-    if (utils.isStandardBrowserEnv()) {
-      var cookies = __webpack_require__(27);
-
-      // Add xsrf header
-      var xsrfValue = (config.withCredentials || isURLSameOrigin(config.url)) && config.xsrfCookieName ?
-          cookies.read(config.xsrfCookieName) :
-          undefined;
-
-      if (xsrfValue) {
-        requestHeaders[config.xsrfHeaderName] = xsrfValue;
-      }
-    }
-
-    // Add headers to the request
-    if ('setRequestHeader' in request) {
-      utils.forEach(requestHeaders, function setRequestHeader(val, key) {
-        if (typeof requestData === 'undefined' && key.toLowerCase() === 'content-type') {
-          // Remove Content-Type if data is undefined
-          delete requestHeaders[key];
-        } else {
-          // Otherwise add header to the request
-          request.setRequestHeader(key, val);
-        }
-      });
-    }
-
-    // Add withCredentials to request if needed
-    if (config.withCredentials) {
-      request.withCredentials = true;
-    }
-
-    // Add responseType to request if needed
-    if (config.responseType) {
-      try {
-        request.responseType = config.responseType;
-      } catch (e) {
-        // Expected DOMException thrown by browsers not compatible XMLHttpRequest Level 2.
-        // But, this can be suppressed for 'json' type as it can be parsed by default 'transformResponse' function.
-        if (config.responseType !== 'json') {
-          throw e;
-        }
-      }
-    }
-
-    // Handle progress if needed
-    if (typeof config.onDownloadProgress === 'function') {
-      request.addEventListener('progress', config.onDownloadProgress);
-    }
-
-    // Not all browsers support upload events
-    if (typeof config.onUploadProgress === 'function' && request.upload) {
-      request.upload.addEventListener('progress', config.onUploadProgress);
-    }
-
-    if (config.cancelToken) {
-      // Handle cancellation
-      config.cancelToken.promise.then(function onCanceled(cancel) {
-        if (!request) {
-          return;
-        }
-
-        request.abort();
-        reject(cancel);
-        // Clean up request
-        request = null;
-      });
-    }
-
-    if (requestData === undefined) {
-      requestData = null;
-    }
-
-    // Send the request
-    request.send(requestData);
-  });
-};
-
-
-/***/ }),
-/* 5 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-var enhanceError = __webpack_require__(22);
-
-/**
- * Create an Error with the specified message, config, error code, request and response.
- *
- * @param {string} message The error message.
- * @param {Object} config The config.
- * @param {string} [code] The error code (for example, 'ECONNABORTED').
- * @param {Object} [request] The request.
- * @param {Object} [response] The response.
- * @returns {Error} The created error.
- */
-module.exports = function createError(message, config, code, request, response) {
-  var error = new Error(message);
-  return enhanceError(error, config, code, request, response);
-};
-
-
-/***/ }),
-/* 6 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-module.exports = function isCancel(value) {
-  return !!(value && value.__CANCEL__);
-};
-
-
-/***/ }),
-/* 7 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-/**
- * A `Cancel` is an object that is thrown when an operation is canceled.
- *
- * @class
- * @param {string=} message The message.
- */
-function Cancel(message) {
-  this.message = message;
-}
-
-Cancel.prototype.toString = function toString() {
-  return 'Cancel' + (this.message ? ': ' + this.message : '');
-};
-
-Cancel.prototype.__CANCEL__ = true;
-
-module.exports = Cancel;
-
-
-/***/ }),
 /* 8 */
 /***/ (function(module, exports, __webpack_require__) {
 
-module.exports = __webpack_require__(9);
 
-
-/***/ }),
-/* 9 */
-/***/ (function(module, exports, __webpack_require__) {
-
-
-/**
- * First we will load all of this project's JavaScript dependencies which
- * includes Vue and other libraries. It is a great starting point when
- * building robust, powerful web applications using Vue and Laravel.
- */
-__webpack_require__(10);
-__webpack_require__(35);
-__webpack_require__(36);
-__webpack_require__(37);
-__webpack_require__(38);
-__webpack_require__(39);
-__webpack_require__(40);
-__webpack_require__(41);
-__webpack_require__(42);
-__webpack_require__(43);
-__webpack_require__(44);
-__webpack_require__(45);
-__webpack_require__(46);
-__webpack_require__(47);
-__webpack_require__(48);
-__webpack_require__(49);
-__webpack_require__(50);
-//require("cloudinary-core");
-// window.cloudinary = require("cloudinary-core");
-
-/***/ }),
-/* 10 */
-/***/ (function(module, exports, __webpack_require__) {
-
-
-window._ = __webpack_require__(11);
+window._ = __webpack_require__(9);
 
 /**
  * We'll load jQuery and the Bootstrap jQuery plugin which provides support
@@ -11052,9 +11015,9 @@ window._ = __webpack_require__(11);
  */
 
 try {
-  window.$ = window.jQuery = __webpack_require__(2);
+  window.$ = window.jQuery = __webpack_require__(7);
 
-  __webpack_require__(14);
+  __webpack_require__(12);
 
   window.$.ajaxSetup({
     headers: {
@@ -11069,7 +11032,7 @@ try {
  * CSRF token as a header based on the value of the "XSRF" token cookie.
  */
 
-window.axios = __webpack_require__(15);
+window.axios = __webpack_require__(13);
 
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 
@@ -11103,7 +11066,7 @@ if (token) {
 // });
 
 /***/ }),
-/* 11 */
+/* 9 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global, module) {var __WEBPACK_AMD_DEFINE_RESULT__;/**
@@ -28192,10 +28155,10 @@ if (token) {
   }
 }.call(this));
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(12), __webpack_require__(13)(module)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(10), __webpack_require__(11)(module)))
 
 /***/ }),
-/* 12 */
+/* 10 */
 /***/ (function(module, exports) {
 
 var g;
@@ -28222,7 +28185,7 @@ module.exports = g;
 
 
 /***/ }),
-/* 13 */
+/* 11 */
 /***/ (function(module, exports) {
 
 module.exports = function(module) {
@@ -28250,7 +28213,7 @@ module.exports = function(module) {
 
 
 /***/ }),
-/* 14 */
+/* 12 */
 /***/ (function(module, exports) {
 
 /*!
@@ -30633,21 +30596,21 @@ if (typeof jQuery === 'undefined') {
 
 
 /***/ }),
-/* 15 */
+/* 13 */
 /***/ (function(module, exports, __webpack_require__) {
 
-module.exports = __webpack_require__(16);
+module.exports = __webpack_require__(14);
 
 /***/ }),
-/* 16 */
+/* 14 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
 var utils = __webpack_require__(0);
-var bind = __webpack_require__(3);
-var Axios = __webpack_require__(18);
+var bind = __webpack_require__(2);
+var Axios = __webpack_require__(16);
 var defaults = __webpack_require__(1);
 
 /**
@@ -30681,15 +30644,15 @@ axios.create = function create(instanceConfig) {
 };
 
 // Expose Cancel & CancelToken
-axios.Cancel = __webpack_require__(7);
-axios.CancelToken = __webpack_require__(33);
-axios.isCancel = __webpack_require__(6);
+axios.Cancel = __webpack_require__(6);
+axios.CancelToken = __webpack_require__(31);
+axios.isCancel = __webpack_require__(5);
 
 // Expose all/spread
 axios.all = function all(promises) {
   return Promise.all(promises);
 };
-axios.spread = __webpack_require__(34);
+axios.spread = __webpack_require__(32);
 
 module.exports = axios;
 
@@ -30698,7 +30661,7 @@ module.exports.default = axios;
 
 
 /***/ }),
-/* 17 */
+/* 15 */
 /***/ (function(module, exports) {
 
 /*!
@@ -30725,7 +30688,7 @@ function isSlowBuffer (obj) {
 
 
 /***/ }),
-/* 18 */
+/* 16 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -30733,10 +30696,10 @@ function isSlowBuffer (obj) {
 
 var defaults = __webpack_require__(1);
 var utils = __webpack_require__(0);
-var InterceptorManager = __webpack_require__(28);
-var dispatchRequest = __webpack_require__(29);
-var isAbsoluteURL = __webpack_require__(31);
-var combineURLs = __webpack_require__(32);
+var InterceptorManager = __webpack_require__(26);
+var dispatchRequest = __webpack_require__(27);
+var isAbsoluteURL = __webpack_require__(29);
+var combineURLs = __webpack_require__(30);
 
 /**
  * Create a new instance of Axios
@@ -30818,7 +30781,7 @@ module.exports = Axios;
 
 
 /***/ }),
-/* 19 */
+/* 17 */
 /***/ (function(module, exports) {
 
 // shim for using process in browser
@@ -31008,7 +30971,7 @@ process.umask = function() { return 0; };
 
 
 /***/ }),
-/* 20 */
+/* 18 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -31027,13 +30990,13 @@ module.exports = function normalizeHeaderName(headers, normalizedName) {
 
 
 /***/ }),
-/* 21 */
+/* 19 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var createError = __webpack_require__(5);
+var createError = __webpack_require__(4);
 
 /**
  * Resolve or reject a Promise based on response status.
@@ -31060,7 +31023,7 @@ module.exports = function settle(resolve, reject, response) {
 
 
 /***/ }),
-/* 22 */
+/* 20 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -31088,7 +31051,7 @@ module.exports = function enhanceError(error, config, code, request, response) {
 
 
 /***/ }),
-/* 23 */
+/* 21 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -31163,7 +31126,7 @@ module.exports = function buildURL(url, params, paramsSerializer) {
 
 
 /***/ }),
-/* 24 */
+/* 22 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -31207,7 +31170,7 @@ module.exports = function parseHeaders(headers) {
 
 
 /***/ }),
-/* 25 */
+/* 23 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -31282,7 +31245,7 @@ module.exports = (
 
 
 /***/ }),
-/* 26 */
+/* 24 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -31325,7 +31288,7 @@ module.exports = btoa;
 
 
 /***/ }),
-/* 27 */
+/* 25 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -31385,7 +31348,7 @@ module.exports = (
 
 
 /***/ }),
-/* 28 */
+/* 26 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -31444,15 +31407,15 @@ module.exports = InterceptorManager;
 
 
 /***/ }),
-/* 29 */
+/* 27 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
 var utils = __webpack_require__(0);
-var transformData = __webpack_require__(30);
-var isCancel = __webpack_require__(6);
+var transformData = __webpack_require__(28);
+var isCancel = __webpack_require__(5);
 var defaults = __webpack_require__(1);
 
 /**
@@ -31530,7 +31493,7 @@ module.exports = function dispatchRequest(config) {
 
 
 /***/ }),
-/* 30 */
+/* 28 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -31557,7 +31520,7 @@ module.exports = function transformData(data, headers, fns) {
 
 
 /***/ }),
-/* 31 */
+/* 29 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -31578,7 +31541,7 @@ module.exports = function isAbsoluteURL(url) {
 
 
 /***/ }),
-/* 32 */
+/* 30 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -31599,13 +31562,13 @@ module.exports = function combineURLs(baseURL, relativeURL) {
 
 
 /***/ }),
-/* 33 */
+/* 31 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var Cancel = __webpack_require__(7);
+var Cancel = __webpack_require__(6);
 
 /**
  * A `CancelToken` is an object that can be used to request cancellation of an operation.
@@ -31663,7 +31626,7 @@ module.exports = CancelToken;
 
 
 /***/ }),
-/* 34 */
+/* 32 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -31697,7 +31660,7 @@ module.exports = function spread(callback) {
 
 
 /***/ }),
-/* 35 */
+/* 33 */
 /***/ (function(module, exports) {
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -33815,7 +33778,345 @@ if (typeof jQuery === 'undefined') {
 }(jQuery);
 
 /***/ }),
+/* 34 */
+/***/ (function(module, exports) {
+
+var Profile = function () {
+  return { init: function init() {
+      Profile.initMiniCharts();
+    }, initMiniCharts: function initMiniCharts() {
+      App.isIE8() && !Function.prototype.bind && (Function.prototype.bind = function (t) {
+        if ("function" != typeof this) throw new TypeError("Function.prototype.bind - what is trying to be bound is not callable");var i = Array.prototype.slice.call(arguments, 1),
+            r = this,
+            n = function n() {},
+            o = function o() {
+          return r.apply(this instanceof n && t ? this : t, i.concat(Array.prototype.slice.call(arguments)));
+        };return n.prototype = this.prototype, o.prototype = new n(), o;
+      }), $("#sparkline_bar").sparkline([8, 9, 10, 11, 10, 10, 12, 10, 10, 11, 9, 12, 11], { type: "bar", width: "100", barWidth: 6, height: "45", barColor: "#F36A5B", negBarColor: "#e02222" }), $("#sparkline_bar2").sparkline([9, 11, 12, 13, 12, 13, 10, 14, 13, 11, 11, 12, 11], { type: "bar", width: "100", barWidth: 6, height: "45", barColor: "#5C9BD1", negBarColor: "#e02222" });
+    } };
+}();App.isAngularJsApp() === !1 && jQuery(document).ready(function () {
+  Profile.init();
+});
+
+/***/ }),
+/* 35 */
+/***/ (function(module, exports) {
+
+/*! http://responsiveslides.com v1.54 by @viljamis */
+(function (c, I, B) {
+  c.fn.responsiveSlides = function (l) {
+    var a = c.extend({ auto: !0, speed: 500, timeout: 4E3, pager: !1, nav: !1, random: !1, pause: !1, pauseControls: !0, prevText: "Previous", nextText: "Next", maxwidth: "", navContainer: "", manualControls: "", namespace: "rslides", before: c.noop, after: c.noop }, l);return this.each(function () {
+      B++;var f = c(this),
+          s,
+          r,
+          t,
+          m,
+          p,
+          q,
+          n = 0,
+          e = f.children(),
+          C = e.size(),
+          h = parseFloat(a.speed),
+          D = parseFloat(a.timeout),
+          u = parseFloat(a.maxwidth),
+          g = a.namespace,
+          d = g + B,
+          E = g + "_nav " + d + "_nav",
+          v = g + "_here",
+          j = d + "_on",
+          w = d + "_s",
+          k = c("<ul class='" + g + "_tabs " + d + "_tabs' />"),
+          x = { "float": "left", position: "relative", opacity: 1, zIndex: 2 },
+          y = { "float": "none", position: "absolute", opacity: 0, zIndex: 1 },
+          F = function () {
+        var b = (document.body || document.documentElement).style,
+            a = "transition";if ("string" === typeof b[a]) return !0;s = ["Moz", "Webkit", "Khtml", "O", "ms"];var a = a.charAt(0).toUpperCase() + a.substr(1),
+            c;for (c = 0; c < s.length; c++) {
+          if ("string" === typeof b[s[c] + a]) return !0;
+        }return !1;
+      }(),
+          z = function z(b) {
+        a.before(b);F ? (e.removeClass(j).css(y).eq(b).addClass(j).css(x), n = b, setTimeout(function () {
+          a.after(b);
+        }, h)) : e.stop().fadeOut(h, function () {
+          c(this).removeClass(j).css(y).css("opacity", 1);
+        }).eq(b).fadeIn(h, function () {
+          c(this).addClass(j).css(x);a.after(b);n = b;
+        });
+      };a.random && (e.sort(function () {
+        return Math.round(Math.random()) - 0.5;
+      }), f.empty().append(e));e.each(function (a) {
+        this.id = w + a;
+      });f.addClass(g + " " + d);l && l.maxwidth && f.css("max-width", u);e.hide().css(y).eq(0).addClass(j).css(x).show();F && e.show().css({ "-webkit-transition": "opacity " + h + "ms ease-in-out", "-moz-transition": "opacity " + h + "ms ease-in-out", "-o-transition": "opacity " + h + "ms ease-in-out", transition: "opacity " + h + "ms ease-in-out" });if (1 < e.size()) {
+        if (D < h + 100) return;if (a.pager && !a.manualControls) {
+          var A = [];e.each(function (a) {
+            a += 1;A += "<li><a href='#' class='" + w + a + "'>" + a + "</a></li>";
+          });k.append(A);l.navContainer ? c(a.navContainer).append(k) : f.after(k);
+        }a.manualControls && (k = c(a.manualControls), k.addClass(g + "_tabs " + d + "_tabs"));(a.pager || a.manualControls) && k.find("li").each(function (a) {
+          c(this).addClass(w + (a + 1));
+        });if (a.pager || a.manualControls) q = k.find("a"), r = function r(a) {
+          q.closest("li").removeClass(v).eq(a).addClass(v);
+        };a.auto && (t = function t() {
+          p = setInterval(function () {
+            e.stop(!0, !0);var b = n + 1 < C ? n + 1 : 0;(a.pager || a.manualControls) && r(b);z(b);
+          }, D);
+        }, t());m = function m() {
+          a.auto && (clearInterval(p), t());
+        };a.pause && f.hover(function () {
+          clearInterval(p);
+        }, function () {
+          m();
+        });if (a.pager || a.manualControls) q.bind("click", function (b) {
+          b.preventDefault();a.pauseControls || m();b = q.index(this);n === b || c("." + j).queue("fx").length || (r(b), z(b));
+        }).eq(0).closest("li").addClass(v), a.pauseControls && q.hover(function () {
+          clearInterval(p);
+        }, function () {
+          m();
+        });if (a.nav) {
+          g = "<a href='#' class='" + E + " prev'>" + a.prevText + "</a><a href='#' class='" + E + " next'>" + a.nextText + "</a>";l.navContainer ? c(a.navContainer).append(g) : f.after(g);var d = c("." + d + "_nav"),
+              G = d.filter(".prev");d.bind("click", function (b) {
+            b.preventDefault();b = c("." + j);if (!b.queue("fx").length) {
+              var d = e.index(b);b = d - 1;d = d + 1 < C ? n + 1 : 0;z(c(this)[0] === G[0] ? b : d);if (a.pager || a.manualControls) r(c(this)[0] === G[0] ? b : d);a.pauseControls || m();
+            }
+          });
+          a.pauseControls && d.hover(function () {
+            clearInterval(p);
+          }, function () {
+            m();
+          });
+        }
+      }if ("undefined" === typeof document.body.style.maxWidth && l.maxwidth) {
+        var H = function H() {
+          f.css("width", "100%");f.width() > u && f.css("width", u);
+        };H();c(I).bind("resize", function () {
+          H();
+        });
+      }
+    });
+  };
+})(jQuery, this, 0);
+
+/***/ }),
 /* 36 */
+/***/ (function(module, exports) {
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+!function (a, b) {
+  function c(b) {
+    var c = p(),
+        d = c.querySelector("h2"),
+        e = c.querySelector("p"),
+        f = c.querySelector("button.cancel"),
+        g = c.querySelector("button.confirm");if (d.innerHTML = u(b.title).split("\n").join("<br>"), e.innerHTML = u(b.text || "").split("\n").join("<br>"), b.text && w(e), y(c.querySelectorAll(".icon")), b.type) {
+      for (var h = !1, i = 0; i < n.length; i++) {
+        if (b.type === n[i]) {
+          h = !0;break;
+        }
+      }if (!h) return a.console.error("Unknown alert type: " + b.type), !1;var j = c.querySelector(".icon." + b.type);switch (w(j), b.type) {case "success":
+          s(j, "animate"), s(j.querySelector(".tip"), "animateSuccessTip"), s(j.querySelector(".long"), "animateSuccessLong");break;case "error":
+          s(j, "animateErrorIcon"), s(j.querySelector(".x-mark"), "animateXMark");break;case "warning":
+          s(j, "pulseWarning"), s(j.querySelector(".body"), "pulseWarningIns"), s(j.querySelector(".dot"), "pulseWarningIns");}
+    }if (b.imageUrl) {
+      var k = c.querySelector(".icon.custom");k.style.backgroundImage = "url(" + b.imageUrl + ")", w(k);var l = 80,
+          m = 80;if (b.imageSize) {
+        var o = b.imageSize.split("x")[0],
+            q = b.imageSize.split("x")[1];o && q ? (l = o, m = q, k.css({ width: o + "px", height: q + "px" })) : a.console.error("Parameter imageSize expects value with format WIDTHxHEIGHT, got " + b.imageSize);
+      }k.setAttribute("style", k.getAttribute("style") + "width:" + l + "px; height:" + m + "px");
+    }c.setAttribute("data-has-cancel-button", b.showCancelButton), b.showCancelButton ? f.style.display = "inline-block" : y(f), c.setAttribute("data-has-confirm-button", b.showConfirmButton), b.showConfirmButton ? g.style.display = "inline-block" : y(g), b.cancelButtonText && (f.innerHTML = u(b.cancelButtonText)), b.confirmButtonText && (g.innerHTML = u(b.confirmButtonText)), g.className = "confirm btn btn-lg", s(c, b.containerClass), s(g, b.confirmButtonClass), s(f, b.cancelButtonClass), s(d, b.titleClass), s(e, b.textClass), c.setAttribute("data-allow-ouside-click", b.allowOutsideClick);var r = b.doneFunction ? !0 : !1;c.setAttribute("data-has-done-function", r), c.setAttribute("data-timer", b.timer);
+  }function d(a, b) {
+    for (var c in b) {
+      b.hasOwnProperty(c) && (a[c] = b[c]);
+    }return a;
+  }function e() {
+    var a = p();B(q(), 10), w(a), s(a, "showSweetAlert"), t(a, "hideSweetAlert"), h = b.activeElement;var c = a.querySelector("button.confirm");c.focus(), setTimeout(function () {
+      s(a, "visible");
+    }, 500);var d = a.getAttribute("data-timer");"null" !== d && "" !== d && setTimeout(function () {
+      f();
+    }, d);
+  }function f() {
+    var c = p();C(q(), 5), C(c, 5), t(c, "showSweetAlert"), s(c, "hideSweetAlert"), t(c, "visible");var d = c.querySelector(".icon.success");t(d, "animate"), t(d.querySelector(".tip"), "animateSuccessTip"), t(d.querySelector(".long"), "animateSuccessLong");var e = c.querySelector(".icon.error");t(e, "animateErrorIcon"), t(e.querySelector(".x-mark"), "animateXMark");var f = c.querySelector(".icon.warning");t(f, "pulseWarning"), t(f.querySelector(".body"), "pulseWarningIns"), t(f.querySelector(".dot"), "pulseWarningIns"), a.onkeydown = j, b.onclick = i, h && h.focus(), k = void 0;
+  }function g() {
+    var a = p();a.style.marginTop = A(p());
+  }var h,
+      i,
+      j,
+      k,
+      l = ".sweet-alert",
+      m = ".sweet-overlay",
+      n = ["error", "warning", "info", "success"],
+      o = { title: "", text: "", type: null, allowOutsideClick: !1, showCancelButton: !1, showConfirmButton: !0, closeOnConfirm: !0, closeOnCancel: !0, confirmButtonText: "OK", confirmButtonClass: "btn-primary", cancelButtonText: "Cancel", cancelButtonClass: "btn-default", containerClass: "", titleClass: "", textClass: "", imageUrl: null, imageSize: null, timer: null },
+      p = function p() {
+    return b.querySelector(l);
+  },
+      q = function q() {
+    return b.querySelector(m);
+  },
+      r = function r(a, b) {
+    return new RegExp(" " + b + " ").test(" " + a.className + " ");
+  },
+      s = function s(a, b) {
+    b && !r(a, b) && (a.className += " " + b);
+  },
+      t = function t(a, b) {
+    var c = " " + a.className.replace(/[\t\r\n]/g, " ") + " ";if (r(a, b)) {
+      for (; c.indexOf(" " + b + " ") >= 0;) {
+        c = c.replace(" " + b + " ", " ");
+      }a.className = c.replace(/^\s+|\s+$/g, "");
+    }
+  },
+      u = function u(a) {
+    var c = b.createElement("div");return c.appendChild(b.createTextNode(a)), c.innerHTML;
+  },
+      v = function v(a) {
+    a.style.opacity = "", a.style.display = "block";
+  },
+      w = function w(a) {
+    if (a && !a.length) return v(a);for (var b = 0; b < a.length; ++b) {
+      v(a[b]);
+    }
+  },
+      x = function x(a) {
+    a.style.opacity = "", a.style.display = "none";
+  },
+      y = function y(a) {
+    if (a && !a.length) return x(a);for (var b = 0; b < a.length; ++b) {
+      x(a[b]);
+    }
+  },
+      z = function z(a, b) {
+    for (var c = b.parentNode; null !== c;) {
+      if (c === a) return !0;c = c.parentNode;
+    }return !1;
+  },
+      A = function A(a) {
+    a.style.left = "-9999px", a.style.display = "block";var b = a.clientHeight,
+        c = parseInt(getComputedStyle(a).getPropertyValue("padding"), 10);return a.style.left = "", a.style.display = "none", "-" + parseInt(b / 2 + c) + "px";
+  },
+      B = function B(a, b) {
+    if (+a.style.opacity < 1) {
+      b = b || 16, a.style.opacity = 0, a.style.display = "block";var c = +new Date(),
+          d = function d() {
+        a.style.opacity = +a.style.opacity + (new Date() - c) / 100, c = +new Date(), +a.style.opacity < 1 && setTimeout(d, b);
+      };d();
+    }
+  },
+      C = function C(a, b) {
+    b = b || 16, a.style.opacity = 1;var c = +new Date(),
+        d = function d() {
+      a.style.opacity = +a.style.opacity - (new Date() - c) / 100, c = +new Date(), +a.style.opacity > 0 ? setTimeout(d, b) : a.style.display = "none";
+    };d();
+  },
+      D = function D(c) {
+    if (MouseEvent) {
+      var d = new MouseEvent("click", { view: a, bubbles: !1, cancelable: !0 });c.dispatchEvent(d);
+    } else if (b.createEvent) {
+      var e = b.createEvent("MouseEvents");e.initEvent("click", !1, !1), c.dispatchEvent(e);
+    } else b.createEventObject ? c.fireEvent("onclick") : "function" == typeof c.onclick && c.onclick();
+  },
+      E = function E(b) {
+    "function" == typeof b.stopPropagation ? (b.stopPropagation(), b.preventDefault()) : a.event && a.event.hasOwnProperty("cancelBubble") && (a.event.cancelBubble = !0);
+  };a.sweetAlertInitialize = function () {
+    var a = '<div class="sweet-overlay" tabIndex="-1"></div><div class="sweet-alert" style="display:none" tabIndex="-1"><div class="icon error"><span class="x-mark"><span class="line left"></span><span class="line right"></span></span></div><div class="icon warning"> <span class="body"></span> <span class="dot"></span> </div> <div class="icon info"></div> <div class="icon success"> <span class="line tip"></span> <span class="line long"></span> <div class="placeholder"></div> <div class="fix"></div> </div> <div class="icon custom"></div> <h2>Title</h2><p class="lead text-muted">Text</p><p style="direction:rtl !important;"><button class="cancel btn btn-lg" tabIndex="2">Cancel</button> <button class="confirm btn btn-lg" tabIndex="1">OK</button></p></div>',
+        c = b.createElement("div");c.innerHTML = a, b.body.appendChild(c);
+  }, a.sweetAlert = a.swal = function () {
+    function h(a) {
+      var b = a.keyCode || a.which;if (-1 !== [9, 13, 32, 27].indexOf(b)) {
+        for (var c = a.target || a.srcElement, d = -1, e = 0; e < w.length; e++) {
+          if (c === w[e]) {
+            d = e;break;
+          }
+        }9 === b ? (c = -1 === d ? u : d === w.length - 1 ? w[0] : w[d + 1], E(a), c.focus()) : (c = 13 === b || 32 === b ? -1 === d ? u : void 0 : 27 !== b || v.hidden || "none" === v.style.display ? void 0 : v, void 0 !== c && D(c, a));
+      }
+    }function l(a) {
+      var b = a.target || a.srcElement,
+          c = a.relatedTarget,
+          d = r(n, "visible");if (d) {
+        var e = -1;if (null !== c) {
+          for (var f = 0; f < w.length; f++) {
+            if (c === w[f]) {
+              e = f;break;
+            }
+          }-1 === e && b.focus();
+        } else k = b;
+      }
+    }if (void 0 === arguments[0]) return a.console.error("sweetAlert expects at least 1 attribute!"), !1;var m = d({}, o);switch (_typeof(arguments[0])) {case "string":
+        m.title = arguments[0], m.text = arguments[1] || "", m.type = arguments[2] || "";break;case "object":
+        if (void 0 === arguments[0].title) return a.console.error('Missing "title" argument!'), !1;m.title = arguments[0].title, m.text = arguments[0].text || o.text, m.type = arguments[0].type || o.type, m.allowOutsideClick = arguments[0].allowOutsideClick || o.allowOutsideClick, m.showCancelButton = void 0 !== arguments[0].showCancelButton ? arguments[0].showCancelButton : o.showCancelButton, m.showConfirmButton = void 0 !== arguments[0].showConfirmButton ? arguments[0].showConfirmButton : o.showConfirmButton, m.closeOnConfirm = void 0 !== arguments[0].closeOnConfirm ? arguments[0].closeOnConfirm : o.closeOnConfirm, m.closeOnCancel = void 0 !== arguments[0].closeOnCancel ? arguments[0].closeOnCancel : o.closeOnCancel, m.timer = arguments[0].timer || o.timer, m.confirmButtonText = o.showCancelButton ? "Confirm" : o.confirmButtonText, m.confirmButtonText = arguments[0].confirmButtonText || o.confirmButtonText, m.confirmButtonClass = arguments[0].confirmButtonClass || (arguments[0].type ? "btn-" + arguments[0].type : null) || o.confirmButtonClass, m.cancelButtonText = arguments[0].cancelButtonText || o.cancelButtonText, m.cancelButtonClass = arguments[0].cancelButtonClass || o.cancelButtonClass, m.containerClass = arguments[0].containerClass || o.containerClass, m.titleClass = arguments[0].titleClass || o.titleClass, m.textClass = arguments[0].textClass || o.textClass, m.imageUrl = arguments[0].imageUrl || o.imageUrl, m.imageSize = arguments[0].imageSize || o.imageSize, m.doneFunction = arguments[1] || null;break;default:
+        return a.console.error('Unexpected type of argument! Expected "string" or "object", got ' + _typeof(arguments[0])), !1;}c(m), g(), e();for (var n = p(), q = function q(a) {
+      var b = a.target || a.srcElement,
+          c = b.className.indexOf("confirm") > -1,
+          d = r(n, "visible"),
+          e = m.doneFunction && "true" === n.getAttribute("data-has-done-function");switch (a.type) {case "click":
+          if (c && e && d) m.doneFunction(!0), m.closeOnConfirm && f();else if (e && d) {
+            var g = String(m.doneFunction).replace(/\s/g, ""),
+                h = "function(" === g.substring(0, 9) && ")" !== g.substring(9, 10);h && m.doneFunction(!1), m.closeOnCancel && f();
+          } else f();}
+    }, s = n.querySelectorAll("button"), t = 0; t < s.length; t++) {
+      s[t].onclick = q;
+    }i = b.onclick, b.onclick = function (a) {
+      var b = a.target || a.srcElement,
+          c = n === b,
+          d = z(n, a.target),
+          e = r(n, "visible"),
+          g = "true" === n.getAttribute("data-allow-ouside-click");!c && !d && e && g && f();
+    };var u = n.querySelector("button.confirm"),
+        v = n.querySelector("button.cancel"),
+        w = n.querySelectorAll("button:not([type=hidden])");j = a.onkeydown, a.onkeydown = h, u.onblur = l, v.onblur = l, a.onfocus = function () {
+      a.setTimeout(function () {
+        void 0 !== k && (k.focus(), k = void 0);
+      }, 0);
+    };
+  }, a.swal.setDefaults = function (a) {
+    if (!a) throw new Error("userParams is required");if ("object" != (typeof a === "undefined" ? "undefined" : _typeof(a))) throw new Error("userParams has to be a object");d(o, a);
+  }, a.swal.close = function () {
+    f();
+  }, function () {
+    "complete" === b.readyState || "interactive" === b.readyState && b.body ? sweetAlertInitialize() : b.addEventListener ? b.addEventListener("DOMContentLoaded", function a() {
+      b.removeEventListener("DOMContentLoaded", a, !1), sweetAlertInitialize();
+    }, !1) : b.attachEvent && b.attachEvent("onreadystatechange", function c() {
+      "complete" === b.readyState && (b.detachEvent("onreadystatechange", c), sweetAlertInitialize());
+    });
+  }();
+}(window, document);
+
+/***/ }),
+/* 37 */
+/***/ (function(module, exports, __webpack_require__) {
+
+module.exports = __webpack_require__(38);
+
+
+/***/ }),
+/* 38 */
+/***/ (function(module, exports, __webpack_require__) {
+
+
+/**
+ * First we will load all of this project's JavaScript dependencies which
+ * includes Vue and other libraries. It is a great starting point when
+ * building robust, powerful web applications using Vue and Laravel.
+ */
+__webpack_require__(8);
+__webpack_require__(33);
+__webpack_require__(39);
+__webpack_require__(40);
+__webpack_require__(41);
+__webpack_require__(42);
+__webpack_require__(43);
+__webpack_require__(44);
+__webpack_require__(45);
+__webpack_require__(46);
+__webpack_require__(47);
+__webpack_require__(48);
+__webpack_require__(49);
+__webpack_require__(50);
+__webpack_require__(34);
+__webpack_require__(35);
+__webpack_require__(36);
+
+/***/ }),
+/* 39 */
 /***/ (function(module, exports) {
 
 /*
@@ -33962,7 +34263,7 @@ jQuery.extend(jQuery.easing, {
 });
 
 /***/ }),
-/* 37 */
+/* 40 */
 /***/ (function(module, exports) {
 
 /*
@@ -34188,7 +34489,7 @@ jQuery.extend(jQuery.easing, {
 })(jQuery);
 
 /***/ }),
-/* 38 */
+/* 41 */
 /***/ (function(module, exports) {
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -34467,7 +34768,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
 })(jQuery);
 
 /***/ }),
-/* 39 */
+/* 42 */
 /***/ (function(module, exports) {
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -35145,7 +35446,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
 })(jQuery);
 
 /***/ }),
-/* 40 */
+/* 43 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -35163,7 +35464,7 @@ var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_
 ;(function (factory) {
 	// AMD Support
 	if (true) {
-		!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(2)], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory),
+		!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(7)], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory),
 				__WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ?
 				(__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__),
 				__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
@@ -35332,7 +35633,7 @@ var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_
 });
 
 /***/ }),
-/* 41 */
+/* 44 */
 /***/ (function(module, exports) {
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -36721,7 +37022,7 @@ window.particlesJS.load = function (tag_id, path_config_json, callback) {
 };
 
 /***/ }),
-/* 42 */
+/* 45 */
 /***/ (function(module, exports) {
 
 /* -----------------------------------------------
@@ -36855,7 +37156,7 @@ particlesJS('particles-js', {
 });
 
 /***/ }),
-/* 43 */
+/* 46 */
 /***/ (function(module, exports) {
 
 (function () {
@@ -36888,7 +37189,7 @@ particlesJS('particles-js', {
 })();
 
 /***/ }),
-/* 44 */
+/* 47 */
 /***/ (function(module, exports) {
 
 /**
@@ -36962,7 +37263,7 @@ particlesJS('particles-js', {
 })(jQuery);
 
 /***/ }),
-/* 45 */
+/* 48 */
 /***/ (function(module, exports) {
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -37210,7 +37511,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
 };
 
 /***/ }),
-/* 46 */
+/* 49 */
 /***/ (function(module, exports) {
 
 /* UItoTop jQuery Plugin 1.2 | Matt Varone | http://www.mattvarone.com/web-design/uitotop-jquery-plugin */
@@ -37235,7 +37536,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
 })(jQuery);
 
 /***/ }),
-/* 47 */
+/* 50 */
 /***/ (function(module, exports) {
 
 /**
@@ -37320,309 +37621,6 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
         }
     }
 })(jQuery);
-
-/***/ }),
-/* 48 */
-/***/ (function(module, exports) {
-
-var Profile = function () {
-  return { init: function init() {
-      Profile.initMiniCharts();
-    }, initMiniCharts: function initMiniCharts() {
-      App.isIE8() && !Function.prototype.bind && (Function.prototype.bind = function (t) {
-        if ("function" != typeof this) throw new TypeError("Function.prototype.bind - what is trying to be bound is not callable");var i = Array.prototype.slice.call(arguments, 1),
-            r = this,
-            n = function n() {},
-            o = function o() {
-          return r.apply(this instanceof n && t ? this : t, i.concat(Array.prototype.slice.call(arguments)));
-        };return n.prototype = this.prototype, o.prototype = new n(), o;
-      }), $("#sparkline_bar").sparkline([8, 9, 10, 11, 10, 10, 12, 10, 10, 11, 9, 12, 11], { type: "bar", width: "100", barWidth: 6, height: "45", barColor: "#F36A5B", negBarColor: "#e02222" }), $("#sparkline_bar2").sparkline([9, 11, 12, 13, 12, 13, 10, 14, 13, 11, 11, 12, 11], { type: "bar", width: "100", barWidth: 6, height: "45", barColor: "#5C9BD1", negBarColor: "#e02222" });
-    } };
-}();App.isAngularJsApp() === !1 && jQuery(document).ready(function () {
-  Profile.init();
-});
-
-/***/ }),
-/* 49 */
-/***/ (function(module, exports) {
-
-/*! http://responsiveslides.com v1.54 by @viljamis */
-(function (c, I, B) {
-  c.fn.responsiveSlides = function (l) {
-    var a = c.extend({ auto: !0, speed: 500, timeout: 4E3, pager: !1, nav: !1, random: !1, pause: !1, pauseControls: !0, prevText: "Previous", nextText: "Next", maxwidth: "", navContainer: "", manualControls: "", namespace: "rslides", before: c.noop, after: c.noop }, l);return this.each(function () {
-      B++;var f = c(this),
-          s,
-          r,
-          t,
-          m,
-          p,
-          q,
-          n = 0,
-          e = f.children(),
-          C = e.size(),
-          h = parseFloat(a.speed),
-          D = parseFloat(a.timeout),
-          u = parseFloat(a.maxwidth),
-          g = a.namespace,
-          d = g + B,
-          E = g + "_nav " + d + "_nav",
-          v = g + "_here",
-          j = d + "_on",
-          w = d + "_s",
-          k = c("<ul class='" + g + "_tabs " + d + "_tabs' />"),
-          x = { "float": "left", position: "relative", opacity: 1, zIndex: 2 },
-          y = { "float": "none", position: "absolute", opacity: 0, zIndex: 1 },
-          F = function () {
-        var b = (document.body || document.documentElement).style,
-            a = "transition";if ("string" === typeof b[a]) return !0;s = ["Moz", "Webkit", "Khtml", "O", "ms"];var a = a.charAt(0).toUpperCase() + a.substr(1),
-            c;for (c = 0; c < s.length; c++) {
-          if ("string" === typeof b[s[c] + a]) return !0;
-        }return !1;
-      }(),
-          z = function z(b) {
-        a.before(b);F ? (e.removeClass(j).css(y).eq(b).addClass(j).css(x), n = b, setTimeout(function () {
-          a.after(b);
-        }, h)) : e.stop().fadeOut(h, function () {
-          c(this).removeClass(j).css(y).css("opacity", 1);
-        }).eq(b).fadeIn(h, function () {
-          c(this).addClass(j).css(x);a.after(b);n = b;
-        });
-      };a.random && (e.sort(function () {
-        return Math.round(Math.random()) - 0.5;
-      }), f.empty().append(e));e.each(function (a) {
-        this.id = w + a;
-      });f.addClass(g + " " + d);l && l.maxwidth && f.css("max-width", u);e.hide().css(y).eq(0).addClass(j).css(x).show();F && e.show().css({ "-webkit-transition": "opacity " + h + "ms ease-in-out", "-moz-transition": "opacity " + h + "ms ease-in-out", "-o-transition": "opacity " + h + "ms ease-in-out", transition: "opacity " + h + "ms ease-in-out" });if (1 < e.size()) {
-        if (D < h + 100) return;if (a.pager && !a.manualControls) {
-          var A = [];e.each(function (a) {
-            a += 1;A += "<li><a href='#' class='" + w + a + "'>" + a + "</a></li>";
-          });k.append(A);l.navContainer ? c(a.navContainer).append(k) : f.after(k);
-        }a.manualControls && (k = c(a.manualControls), k.addClass(g + "_tabs " + d + "_tabs"));(a.pager || a.manualControls) && k.find("li").each(function (a) {
-          c(this).addClass(w + (a + 1));
-        });if (a.pager || a.manualControls) q = k.find("a"), r = function r(a) {
-          q.closest("li").removeClass(v).eq(a).addClass(v);
-        };a.auto && (t = function t() {
-          p = setInterval(function () {
-            e.stop(!0, !0);var b = n + 1 < C ? n + 1 : 0;(a.pager || a.manualControls) && r(b);z(b);
-          }, D);
-        }, t());m = function m() {
-          a.auto && (clearInterval(p), t());
-        };a.pause && f.hover(function () {
-          clearInterval(p);
-        }, function () {
-          m();
-        });if (a.pager || a.manualControls) q.bind("click", function (b) {
-          b.preventDefault();a.pauseControls || m();b = q.index(this);n === b || c("." + j).queue("fx").length || (r(b), z(b));
-        }).eq(0).closest("li").addClass(v), a.pauseControls && q.hover(function () {
-          clearInterval(p);
-        }, function () {
-          m();
-        });if (a.nav) {
-          g = "<a href='#' class='" + E + " prev'>" + a.prevText + "</a><a href='#' class='" + E + " next'>" + a.nextText + "</a>";l.navContainer ? c(a.navContainer).append(g) : f.after(g);var d = c("." + d + "_nav"),
-              G = d.filter(".prev");d.bind("click", function (b) {
-            b.preventDefault();b = c("." + j);if (!b.queue("fx").length) {
-              var d = e.index(b);b = d - 1;d = d + 1 < C ? n + 1 : 0;z(c(this)[0] === G[0] ? b : d);if (a.pager || a.manualControls) r(c(this)[0] === G[0] ? b : d);a.pauseControls || m();
-            }
-          });
-          a.pauseControls && d.hover(function () {
-            clearInterval(p);
-          }, function () {
-            m();
-          });
-        }
-      }if ("undefined" === typeof document.body.style.maxWidth && l.maxwidth) {
-        var H = function H() {
-          f.css("width", "100%");f.width() > u && f.css("width", u);
-        };H();c(I).bind("resize", function () {
-          H();
-        });
-      }
-    });
-  };
-})(jQuery, this, 0);
-
-/***/ }),
-/* 50 */
-/***/ (function(module, exports) {
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
-!function (a, b) {
-  function c(b) {
-    var c = p(),
-        d = c.querySelector("h2"),
-        e = c.querySelector("p"),
-        f = c.querySelector("button.cancel"),
-        g = c.querySelector("button.confirm");if (d.innerHTML = u(b.title).split("\n").join("<br>"), e.innerHTML = u(b.text || "").split("\n").join("<br>"), b.text && w(e), y(c.querySelectorAll(".icon")), b.type) {
-      for (var h = !1, i = 0; i < n.length; i++) {
-        if (b.type === n[i]) {
-          h = !0;break;
-        }
-      }if (!h) return a.console.error("Unknown alert type: " + b.type), !1;var j = c.querySelector(".icon." + b.type);switch (w(j), b.type) {case "success":
-          s(j, "animate"), s(j.querySelector(".tip"), "animateSuccessTip"), s(j.querySelector(".long"), "animateSuccessLong");break;case "error":
-          s(j, "animateErrorIcon"), s(j.querySelector(".x-mark"), "animateXMark");break;case "warning":
-          s(j, "pulseWarning"), s(j.querySelector(".body"), "pulseWarningIns"), s(j.querySelector(".dot"), "pulseWarningIns");}
-    }if (b.imageUrl) {
-      var k = c.querySelector(".icon.custom");k.style.backgroundImage = "url(" + b.imageUrl + ")", w(k);var l = 80,
-          m = 80;if (b.imageSize) {
-        var o = b.imageSize.split("x")[0],
-            q = b.imageSize.split("x")[1];o && q ? (l = o, m = q, k.css({ width: o + "px", height: q + "px" })) : a.console.error("Parameter imageSize expects value with format WIDTHxHEIGHT, got " + b.imageSize);
-      }k.setAttribute("style", k.getAttribute("style") + "width:" + l + "px; height:" + m + "px");
-    }c.setAttribute("data-has-cancel-button", b.showCancelButton), b.showCancelButton ? f.style.display = "inline-block" : y(f), c.setAttribute("data-has-confirm-button", b.showConfirmButton), b.showConfirmButton ? g.style.display = "inline-block" : y(g), b.cancelButtonText && (f.innerHTML = u(b.cancelButtonText)), b.confirmButtonText && (g.innerHTML = u(b.confirmButtonText)), g.className = "confirm btn btn-lg", s(c, b.containerClass), s(g, b.confirmButtonClass), s(f, b.cancelButtonClass), s(d, b.titleClass), s(e, b.textClass), c.setAttribute("data-allow-ouside-click", b.allowOutsideClick);var r = b.doneFunction ? !0 : !1;c.setAttribute("data-has-done-function", r), c.setAttribute("data-timer", b.timer);
-  }function d(a, b) {
-    for (var c in b) {
-      b.hasOwnProperty(c) && (a[c] = b[c]);
-    }return a;
-  }function e() {
-    var a = p();B(q(), 10), w(a), s(a, "showSweetAlert"), t(a, "hideSweetAlert"), h = b.activeElement;var c = a.querySelector("button.confirm");c.focus(), setTimeout(function () {
-      s(a, "visible");
-    }, 500);var d = a.getAttribute("data-timer");"null" !== d && "" !== d && setTimeout(function () {
-      f();
-    }, d);
-  }function f() {
-    var c = p();C(q(), 5), C(c, 5), t(c, "showSweetAlert"), s(c, "hideSweetAlert"), t(c, "visible");var d = c.querySelector(".icon.success");t(d, "animate"), t(d.querySelector(".tip"), "animateSuccessTip"), t(d.querySelector(".long"), "animateSuccessLong");var e = c.querySelector(".icon.error");t(e, "animateErrorIcon"), t(e.querySelector(".x-mark"), "animateXMark");var f = c.querySelector(".icon.warning");t(f, "pulseWarning"), t(f.querySelector(".body"), "pulseWarningIns"), t(f.querySelector(".dot"), "pulseWarningIns"), a.onkeydown = j, b.onclick = i, h && h.focus(), k = void 0;
-  }function g() {
-    var a = p();a.style.marginTop = A(p());
-  }var h,
-      i,
-      j,
-      k,
-      l = ".sweet-alert",
-      m = ".sweet-overlay",
-      n = ["error", "warning", "info", "success"],
-      o = { title: "", text: "", type: null, allowOutsideClick: !1, showCancelButton: !1, showConfirmButton: !0, closeOnConfirm: !0, closeOnCancel: !0, confirmButtonText: "OK", confirmButtonClass: "btn-primary", cancelButtonText: "Cancel", cancelButtonClass: "btn-default", containerClass: "", titleClass: "", textClass: "", imageUrl: null, imageSize: null, timer: null },
-      p = function p() {
-    return b.querySelector(l);
-  },
-      q = function q() {
-    return b.querySelector(m);
-  },
-      r = function r(a, b) {
-    return new RegExp(" " + b + " ").test(" " + a.className + " ");
-  },
-      s = function s(a, b) {
-    b && !r(a, b) && (a.className += " " + b);
-  },
-      t = function t(a, b) {
-    var c = " " + a.className.replace(/[\t\r\n]/g, " ") + " ";if (r(a, b)) {
-      for (; c.indexOf(" " + b + " ") >= 0;) {
-        c = c.replace(" " + b + " ", " ");
-      }a.className = c.replace(/^\s+|\s+$/g, "");
-    }
-  },
-      u = function u(a) {
-    var c = b.createElement("div");return c.appendChild(b.createTextNode(a)), c.innerHTML;
-  },
-      v = function v(a) {
-    a.style.opacity = "", a.style.display = "block";
-  },
-      w = function w(a) {
-    if (a && !a.length) return v(a);for (var b = 0; b < a.length; ++b) {
-      v(a[b]);
-    }
-  },
-      x = function x(a) {
-    a.style.opacity = "", a.style.display = "none";
-  },
-      y = function y(a) {
-    if (a && !a.length) return x(a);for (var b = 0; b < a.length; ++b) {
-      x(a[b]);
-    }
-  },
-      z = function z(a, b) {
-    for (var c = b.parentNode; null !== c;) {
-      if (c === a) return !0;c = c.parentNode;
-    }return !1;
-  },
-      A = function A(a) {
-    a.style.left = "-9999px", a.style.display = "block";var b = a.clientHeight,
-        c = parseInt(getComputedStyle(a).getPropertyValue("padding"), 10);return a.style.left = "", a.style.display = "none", "-" + parseInt(b / 2 + c) + "px";
-  },
-      B = function B(a, b) {
-    if (+a.style.opacity < 1) {
-      b = b || 16, a.style.opacity = 0, a.style.display = "block";var c = +new Date(),
-          d = function d() {
-        a.style.opacity = +a.style.opacity + (new Date() - c) / 100, c = +new Date(), +a.style.opacity < 1 && setTimeout(d, b);
-      };d();
-    }
-  },
-      C = function C(a, b) {
-    b = b || 16, a.style.opacity = 1;var c = +new Date(),
-        d = function d() {
-      a.style.opacity = +a.style.opacity - (new Date() - c) / 100, c = +new Date(), +a.style.opacity > 0 ? setTimeout(d, b) : a.style.display = "none";
-    };d();
-  },
-      D = function D(c) {
-    if (MouseEvent) {
-      var d = new MouseEvent("click", { view: a, bubbles: !1, cancelable: !0 });c.dispatchEvent(d);
-    } else if (b.createEvent) {
-      var e = b.createEvent("MouseEvents");e.initEvent("click", !1, !1), c.dispatchEvent(e);
-    } else b.createEventObject ? c.fireEvent("onclick") : "function" == typeof c.onclick && c.onclick();
-  },
-      E = function E(b) {
-    "function" == typeof b.stopPropagation ? (b.stopPropagation(), b.preventDefault()) : a.event && a.event.hasOwnProperty("cancelBubble") && (a.event.cancelBubble = !0);
-  };a.sweetAlertInitialize = function () {
-    var a = '<div class="sweet-overlay" tabIndex="-1"></div><div class="sweet-alert" style="display:none" tabIndex="-1"><div class="icon error"><span class="x-mark"><span class="line left"></span><span class="line right"></span></span></div><div class="icon warning"> <span class="body"></span> <span class="dot"></span> </div> <div class="icon info"></div> <div class="icon success"> <span class="line tip"></span> <span class="line long"></span> <div class="placeholder"></div> <div class="fix"></div> </div> <div class="icon custom"></div> <h2>Title</h2><p class="lead text-muted">Text</p><p style="direction:rtl !important;"><button class="cancel btn btn-lg" tabIndex="2">Cancel</button> <button class="confirm btn btn-lg" tabIndex="1">OK</button></p></div>',
-        c = b.createElement("div");c.innerHTML = a, b.body.appendChild(c);
-  }, a.sweetAlert = a.swal = function () {
-    function h(a) {
-      var b = a.keyCode || a.which;if (-1 !== [9, 13, 32, 27].indexOf(b)) {
-        for (var c = a.target || a.srcElement, d = -1, e = 0; e < w.length; e++) {
-          if (c === w[e]) {
-            d = e;break;
-          }
-        }9 === b ? (c = -1 === d ? u : d === w.length - 1 ? w[0] : w[d + 1], E(a), c.focus()) : (c = 13 === b || 32 === b ? -1 === d ? u : void 0 : 27 !== b || v.hidden || "none" === v.style.display ? void 0 : v, void 0 !== c && D(c, a));
-      }
-    }function l(a) {
-      var b = a.target || a.srcElement,
-          c = a.relatedTarget,
-          d = r(n, "visible");if (d) {
-        var e = -1;if (null !== c) {
-          for (var f = 0; f < w.length; f++) {
-            if (c === w[f]) {
-              e = f;break;
-            }
-          }-1 === e && b.focus();
-        } else k = b;
-      }
-    }if (void 0 === arguments[0]) return a.console.error("sweetAlert expects at least 1 attribute!"), !1;var m = d({}, o);switch (_typeof(arguments[0])) {case "string":
-        m.title = arguments[0], m.text = arguments[1] || "", m.type = arguments[2] || "";break;case "object":
-        if (void 0 === arguments[0].title) return a.console.error('Missing "title" argument!'), !1;m.title = arguments[0].title, m.text = arguments[0].text || o.text, m.type = arguments[0].type || o.type, m.allowOutsideClick = arguments[0].allowOutsideClick || o.allowOutsideClick, m.showCancelButton = void 0 !== arguments[0].showCancelButton ? arguments[0].showCancelButton : o.showCancelButton, m.showConfirmButton = void 0 !== arguments[0].showConfirmButton ? arguments[0].showConfirmButton : o.showConfirmButton, m.closeOnConfirm = void 0 !== arguments[0].closeOnConfirm ? arguments[0].closeOnConfirm : o.closeOnConfirm, m.closeOnCancel = void 0 !== arguments[0].closeOnCancel ? arguments[0].closeOnCancel : o.closeOnCancel, m.timer = arguments[0].timer || o.timer, m.confirmButtonText = o.showCancelButton ? "Confirm" : o.confirmButtonText, m.confirmButtonText = arguments[0].confirmButtonText || o.confirmButtonText, m.confirmButtonClass = arguments[0].confirmButtonClass || (arguments[0].type ? "btn-" + arguments[0].type : null) || o.confirmButtonClass, m.cancelButtonText = arguments[0].cancelButtonText || o.cancelButtonText, m.cancelButtonClass = arguments[0].cancelButtonClass || o.cancelButtonClass, m.containerClass = arguments[0].containerClass || o.containerClass, m.titleClass = arguments[0].titleClass || o.titleClass, m.textClass = arguments[0].textClass || o.textClass, m.imageUrl = arguments[0].imageUrl || o.imageUrl, m.imageSize = arguments[0].imageSize || o.imageSize, m.doneFunction = arguments[1] || null;break;default:
-        return a.console.error('Unexpected type of argument! Expected "string" or "object", got ' + _typeof(arguments[0])), !1;}c(m), g(), e();for (var n = p(), q = function q(a) {
-      var b = a.target || a.srcElement,
-          c = b.className.indexOf("confirm") > -1,
-          d = r(n, "visible"),
-          e = m.doneFunction && "true" === n.getAttribute("data-has-done-function");switch (a.type) {case "click":
-          if (c && e && d) m.doneFunction(!0), m.closeOnConfirm && f();else if (e && d) {
-            var g = String(m.doneFunction).replace(/\s/g, ""),
-                h = "function(" === g.substring(0, 9) && ")" !== g.substring(9, 10);h && m.doneFunction(!1), m.closeOnCancel && f();
-          } else f();}
-    }, s = n.querySelectorAll("button"), t = 0; t < s.length; t++) {
-      s[t].onclick = q;
-    }i = b.onclick, b.onclick = function (a) {
-      var b = a.target || a.srcElement,
-          c = n === b,
-          d = z(n, a.target),
-          e = r(n, "visible"),
-          g = "true" === n.getAttribute("data-allow-ouside-click");!c && !d && e && g && f();
-    };var u = n.querySelector("button.confirm"),
-        v = n.querySelector("button.cancel"),
-        w = n.querySelectorAll("button:not([type=hidden])");j = a.onkeydown, a.onkeydown = h, u.onblur = l, v.onblur = l, a.onfocus = function () {
-      a.setTimeout(function () {
-        void 0 !== k && (k.focus(), k = void 0);
-      }, 0);
-    };
-  }, a.swal.setDefaults = function (a) {
-    if (!a) throw new Error("userParams is required");if ("object" != (typeof a === "undefined" ? "undefined" : _typeof(a))) throw new Error("userParams has to be a object");d(o, a);
-  }, a.swal.close = function () {
-    f();
-  }, function () {
-    "complete" === b.readyState || "interactive" === b.readyState && b.body ? sweetAlertInitialize() : b.addEventListener ? b.addEventListener("DOMContentLoaded", function a() {
-      b.removeEventListener("DOMContentLoaded", a, !1), sweetAlertInitialize();
-    }, !1) : b.attachEvent && b.attachEvent("onreadystatechange", function c() {
-      "complete" === b.readyState && (b.detachEvent("onreadystatechange", c), sweetAlertInitialize());
-    });
-  }();
-}(window, document);
 
 /***/ })
 /******/ ]);

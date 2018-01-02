@@ -4,6 +4,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="keywords" content="" />
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <script type="application/x-javascript"> addEventListener("load", function() { setTimeout(hideURLbar, 0); }, false); function hideURLbar(){ window.scrollTo(0,1); } </script>
 <!-- bootstrap-css -->
 <link rel="stylesheet" href="{{ url('/css/bootstrap.min.css') }}" >
@@ -1063,8 +1064,8 @@ strong.chat_time {
                         <span>Edit</span>
                     </a>
                     <ul class="sub">
-            						<li><a href="{{ url('/edit/images') }}">Change Images</a></li>
-            						<li><a href="{{ url('/edit/page') }}">Edit Pages</a></li>
+                        <!-- <li><a href="{{ url('/edit/images') }}">Change Images</a></li> -->
+                        <li><a href="{{ url('/edit/page') }}">Edit Pages</a></li>
                     </ul>
                 </li>
 
@@ -1097,7 +1098,7 @@ strong.chat_time {
                     </a>
                     <ul class="sub">
                         <li><a href="{{ url('gallery/new/profile') }}">Add New Student Profile</a></li>
-                        <li><a href="{{ url('gallery/edit/profile') }}">Edit Student Profile</a></li>
+                        <li><a href="{{ url('gallery/students') }}">Edit Student Profile</a></li>
                     </ul>
                 </li>
                 <li class="sub-menu">
@@ -1116,7 +1117,7 @@ strong.chat_time {
                     </a>
                     <ul class="sub">
                         <li><a href="{{ url('contact/social') }}">Change Social Media Link</a></li>
-						<li><a href="{{ url('contact/edit') }}">Edit Contact</a></li>
+            <li><a href="{{ url('contact/edit') }}">Edit Contact</a></li>
                     </ul>
                 </li>
                 <li>
@@ -1134,15 +1135,15 @@ strong.chat_time {
 
 <!--main content start-->
 <section id="main-content">
-  	<section class="wrapper">
+    <section class="wrapper">
          @yield('content')
    </section>
  <!-- footer -->
-		<div class="footer fixed-bottom">
-			<div class="wthree-copyright">
+    <div class="footer fixed-bottom">
+      <div class="wthree-copyright">
             <p>{{ date('Y') ." © ". config('app.name', 'Fecund College') ." " }}  Tutorial. All Rights Reserved | Design by <a href="https://skytechnology.000webhostapp.com/"> SKYTech </a></p>
-			</div>
-		</div>
+      </div>
+    </div>
   <!-- / footer -->
 </section>
 

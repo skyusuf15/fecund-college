@@ -8,44 +8,44 @@
             <div class="banner-text">
             </div>
             <!-- gallery -->
-            <div class="gallery-ban" id="gallery">
-                <div class="container">
-                    <ul id="flexiselDemo1">
-                        <li>
-                            <div class="wthree_testimonials_grid_main">
+                <div class="gallery-ban" id="gallery">
+                    <div class="container">
+                        <ul id="flexiselDemo1">
+                            <li>
+                                <div class="wthree_testimonials_grid_main">
 
-                                <img src="images/slider/s1.jpg" alt=" " class="img-responsive" />
-                            </div>
-                        </li>
-                        <li>
-                            <div class="wthree_testimonials_grid_main">
+                                    <img src="images/slider/s1.jpg" alt=" " class="img-responsive" />
+                                </div>
+                            </li>
+                            <li>
+                                <div class="wthree_testimonials_grid_main">
 
-                                <img src="images/slider/s2.jpg" alt=" " class="img-responsive" />
-                            </div>
-                        </li>
-                        <li>
-                            <div class="wthree_testimonials_grid_main">
+                                    <img src="images/slider/s2.jpg" alt=" " class="img-responsive" />
+                                </div>
+                            </li>
+                            <li>
+                                <div class="wthree_testimonials_grid_main">
 
-                                <img src="images/slider/s3.jpg" alt=" " class="img-responsive" />
-                            </div>
-                        </li>
-                        <li>
-                            <div class="wthree_testimonials_grid_main">
+                                    <img src="images/slider/s3.jpg" alt=" " class="img-responsive" />
+                                </div>
+                            </li>
+                            <li>
+                                <div class="wthree_testimonials_grid_main">
 
-                                <img src="images/slider/s4.jpg" alt=" " class="img-responsive" />
-                            </div>
-                        </li>
-                        <li>
-                            <div class="wthree_testimonials_grid_main">
+                                    <img src="images/slider/s4.jpg" alt=" " class="img-responsive" />
+                                </div>
+                            </li>
+                            <li>
+                                <div class="wthree_testimonials_grid_main">
 
-                                <img src="images/slider/s5.jpg" alt=" " class="img-responsive" />
-                            </div>
-                        </li>
-                       
-                    </ul>
+                                    <img src="images/slider/s5.jpg" alt=" " class="img-responsive" />
+                                </div>
+                            </li>
+                           
+                        </ul>
 
+                    </div>
                 </div>
-            </div>
             <!-- //gallery -->
         </div>
 
@@ -55,7 +55,7 @@
 
 
 @section('page-content')
-<div class="ab-w3l-about">
+<div class="ab-w3l-about" style="margin-top:3.8em;">
 
     <div class="container">
 
@@ -63,7 +63,7 @@
 
         <p class="para-w3l">Fecund is a mini college that aims in adding value to the young ones and touching their lives where it matters most. Join me,we are all part of Fecund.
 
-        <p><a class="read" data-load="single.html">Read More</a></p>
+        <p><a class="read">Read More</a></p>
 
     </div>
 
@@ -130,9 +130,9 @@
 
         <p class="para-w3l">Fecund is a mini college that aims in adding value to the young ones and touching their lives where it matters most. Join me,we are all part of Fecund.</p>
 
-        <div class="about-read">
+        <div class="about-read" style="text-align: center;">
 
-            <a data-load="about.html">Learn More</a>
+            <a class="read">Learn More</a>
 
         </div>
 
@@ -285,30 +285,53 @@
 @endsection
 
 @section('script')
-<script src="js/load.js"></script>
+<!-- <script src="js/load.js"></script> -->
 <script type="text/javascript">
     var data = {!! $contents !!};
     console.log(data);
-    var htmlContent = '';
+    // var htmlContent = '';
 
-        var title_0 = data[0].content_title.split(' ');
-        var title_1 = data[1].content_title.split(' ');
+    //     var title_0 = data[0].content_title.split(' ');
+    //     var title_1 = data[1].content_title.split(' ');
 
-        let titleH_0 = '';
-        for(let k = 0; k<title_0.length; k++){
-            (k%2===0)? titleH_0 +=  '<span>'+ title_0[k] + '</span> ': titleH_0 += title_0[k] +' ';
-        }
+    //     let titleH_0 = '';
+    //     for(let k = 0; k<title_0.length; k++){
+    //         (k%2===0)? titleH_0 +=  '<span>'+ title_0[k] + '</span> ': titleH_0 += title_0[k] +' ';
+    //     }
 
-        let titleH_1 = '';
-        for(let k = 0; k<title_1.length; k++){
-            (k%2===0)? titleH_1 +=  '<span>'+ title_1[k] + '</span> ': titleH_1 += title_1[k] +' ';
-        }
+    //     let titleH_1 = '';
+    //     for(let k = 0; k<title_1.length; k++){
+    //         (k%2===0)? titleH_1 +=  '<span>'+ title_1[k] + '</span> ': titleH_1 += title_1[k] +' ';
+    //     }
 
-        console.log(titleH_0,titleH_1);
+    //     console.log(titleH_0,titleH_1);
+    //     $('.ab-w3l-about').html('<div class="container"><h3 class="tittle-w3">'+ titleH_0 +'</h3>'+ data[0].content+'</div>');
+    //     //$('.mail-grid1').html('<div class="container"><h3 class="tittle-w3">'+ titleH_1 +'</h3>'+ data[1].content +'</div>');
 
+        $('#send_msg').on('click', function(e) {
+            e.preventDefault();
 
-    $('.ab-w3l-about').html('<div class="container"><h3 class="tittle-w3">'+ titleH_0 +'</h3>'+ data[0].content+'</div>');
-    $('.mail-grid1').html('<div class="container"><h3 class="tittle-w3">'+ titleH_1 +'</h3>'+ data[1].content +'</div>');
+            // Add loading state
+            //$('.testdropdown').html('Loading please wait ...');
+           
+            // Set request
+            var url = "/contact/message";
+            var data = $('#contact_form').serialize();
 
+            axios.post(url,data)
+                 .then(function (result) {
+                    swal({
+                          title: result.data.header,
+                          text: result.data.response,
+                          type: 'success',
+                          timer: 5000
+                        });
+                    $("[name='guest_name'],[name='email'],[name='message']").val('');
+
+                  })
+                 .catch(function (error) {
+                    console.log(error);
+            });
+        });
 </script>
 @endsection

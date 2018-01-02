@@ -5,6 +5,7 @@
 <!-- for-mobile-apps -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <meta name="keywords" content="Fecund Turorial College core competence is to register and prepare students for all international examinations such as TOEFL, SAT 1 & 11, GRE, GMAT, PTE. etc. Admission placement in top universities/colleges in CANADA, USA, UK and EUROPE" />
 <script type="application/x-javascript"> addEventListener("load", function() { setTimeout(hideURLbar, 0); }, false);
         function hideURLbar(){ window.scrollTo(0,1); } </script>
@@ -126,7 +127,7 @@
                     <div class="w3_navigation_pos">
                         <h1>
                         <a data-fetch="home.html"><span>F</span>ecund <span>C</span>ollege</a>
-                            <small style="color:#fd6239">Tutorial And Home Tutors</small>
+                            <!-- <small style="color:#fd6239">Tutorial And Home Tutors</small> -->
                         </h1>
                     </div>
                 </div>
@@ -190,6 +191,7 @@
 <script src="{{ url('js/app1.js') }}"></script>
 
 <script src="{{ url('plugins/bootstrap-sweetalert/sweet-alert.min.js') }}"></script>
+<script type="text/javascript" src="{{ url('js/match.height.min.js') }}"></script>
 
 
 <!--gallery-->

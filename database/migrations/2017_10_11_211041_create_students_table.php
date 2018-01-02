@@ -17,10 +17,10 @@ class CreateStudentsTable extends Migration
             $table->increments('id');
             $table->string('fullname');
             $table->string('email')->unique();
-            $table->text('note');
-            $table->string('facebook_id')->unique();
-            $table->string('twitter_id')->unique();
-            $table->string('linkedin_id')->unique();
+            $table->text('note')->nullable();
+            $table->string('facebook_id')->unique()->nullable();
+            $table->string('twitter_id')->unique()->nullable();
+            $table->string('linkedin_id')->unique()->nullable();
             $table->string('image');
             $table->rememberToken();
             $table->timestamps();
